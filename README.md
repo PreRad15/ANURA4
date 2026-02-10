@@ -151,11 +151,11 @@ npm run dev
 ```
 
 **📝 Usage Guide**
-- 1. Register: Create a new account to access your private dashboard.
-- 2. Store Setup: Go to "Store Setup" to configure your shop name, address, GST, and tax rates.
-- 3. Inventory: Add products. If a barcode already exists, the stock will automatically increment.
-- 4. Billing: Add items to the cart, apply discounts, select payment mode (Cash/UPI), and print the invoice.
-- 5. Reports: View detailed sales history, analyze profit margins, and download PDF reports.
+- Register: Create a new account to access your private dashboard.
+- Store Setup: Go to "Store Setup" to configure your shop name, address, GST, and tax rates.
+- Inventory: Add products. If a barcode already exists, the stock will automatically increment.
+- Billing: Add items to the cart, apply discounts, select payment mode (Cash/UPI), and print the invoice.
+- Reports: View detailed sales history, analyze profit margins, and download PDF reports.
 
 
 **🛡️ License**
