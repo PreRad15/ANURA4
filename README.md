@@ -148,43 +148,21 @@ node server.js
 cd client
 npm install
 npm run dev
+```
 
-# ================================
-###📘 Usage Guide
-# ================================
-
-# 1️⃣ Register
-# Create a new account to access your private dashboard.
-
-# 2️⃣ Store Setup
-# Go to "Store Setup" to configure your shop name, address, GST, and tax rates.
-
-# 3️⃣ Inventory
-# Add products to inventory.
-# If a barcode already exists, the stock will automatically increment.
-
-# 4️⃣ Billing
-# Add items to the cart.
-# Apply discounts.
-# Select payment mode (Cash / UPI).
-# Print the invoice after checkout.
-
-# 5️⃣ Reports
-# View detailed sales history.
-# Analyze profit margins.
-# Download PDF sales reports.
+**📝 Usage Guide**
+- 1. Register: Create a new account to access your private dashboard.
+- 2. Store Setup: Go to "Store Setup" to configure your shop name, address, GST, and tax rates.
+- 3. Inventory: Add products. If a barcode already exists, the stock will automatically increment.
+- 4. Billing: Add items to the cart, apply discounts, select payment mode (Cash/UPI), and print the invoice.
+- 5. Reports: View detailed sales history, analyze profit margins, and download PDF reports.
 
 
-# ================================
-# 🛡️ License
-# ================================
+**🛡️ License**
+- This project is licensed under the MIT License.
 
-# This project is licensed under the MIT License.
+**👨‍💻 Developer Information**
+- Developed by Aaryasingh Thakur
+- © 2026 Aaryaingh Thakur. All rights reserved.
 
-
-# ================================
-# 👨‍💻 Developer Information
-# ================================
-
-# Developed by Premshankarsingh Thakur & Co.
-# © 2026 Premshankarsingh Thakur & Company. All rights reserved.
+---
