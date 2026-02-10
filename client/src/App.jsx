@@ -5,7 +5,7 @@ import {
   Save, Search, BarChart3, CheckCircle, X, Printer, LogOut, User as UserIcon, Lock, Download, Trash2, AlertTriangle, FileText, Smartphone, Mail, Globe
 } from 'lucide-react';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // --- UTILS ---
 const formatBillNumber = (num) => String(num).padStart(6, '0');

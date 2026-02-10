@@ -10,7 +10,7 @@ const Product = require('./models/Product');
 const Bill = require('./models/Bill');
 
 const app = express();
-app.use(cors());
+app.use(cors({origin: "https://anura-4.vercel.app"}));
 app.use(express.json());
 
 const JWT_SECRET = 'anura_super_secret_key_2026';
