@@ -1,0 +1,19 @@
+Dependencies
+
+node_modules/
+*/node_modules/
+
+Secrets (NEVER upload these)
+
+.env
+*/.env
+
+Build outputs
+
+dist/
+build/
+
+System files
+
+.DS_Store
+Thumbs.db
