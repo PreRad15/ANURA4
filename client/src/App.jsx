@@ -382,7 +382,9 @@ const AboutPage = () => (
           <p className="text-xl text-gray-500 font-medium">Enterprise Edition v2.6</p>
       </div>
       <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-[#e8daef] max-w-lg w-full transform hover:scale-105 transition-all">
-          <p className="font-bold text-gray-800 dark:text-white text-lg">Developed by Premshankarsingh Thakur & Co.</p>
+          <p className="font-bold text-gray-800 dark:text-white text-lg">Developed by Aaryasingh Thakur </p>
+          <p className="font-bold text-gray-800 dark:text-white text-lg">Developed For Premshankarsingh Thakur @ Company </p>
+          <p className="font-bold text-gray-800 dark:text-white text-lg">aaryasinghttc@gmail.com  Aaryasingh Thakur  +91-9209273910 </p>
           <p className="text-sm text-gray-500 mt-2">© 2026 All Rights Reserved.</p>
           <div className="flex justify-center gap-4 mt-6">
               <Globe size={20} className="text-[#8e44ad]"/>
