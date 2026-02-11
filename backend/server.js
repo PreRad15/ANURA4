@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const User = require('./models/User');
@@ -10,7 +11,7 @@ const Product = require('./models/Product');
 const Bill = require('./models/Bill');
 
 const app = express();
-app.use(cors({origin: "https://anura-4.vercel.app"}));
+app.use(cors());
 app.use(express.json());
 
 const JWT_SECRET = 'anura_super_secret_key_2026';
@@ -27,36 +28,99 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- AUTH ROUTES ---
-app.post('/api/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, password: hashedPassword });
-    await newUser.save();
-    res.json({ message: 'User registered successfully' });
-  } catch (err) {
-    res.status(400).json({ error: 'Username already exists' });
+// --- EMAIL SETUP ---
+// Using Gmail SMTP from your .env file
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
+const sendOTP = async (email, otp) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log(`[DEV MODE] OTP for ${email}: ${otp}`);
+    return true; // Fake success if no email credentials
+  }
+  
+  try {
+    await transporter.sendMail({
+      from: `"Anura SMS" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'ANURA Verification Code',
+      html: `<h2>Your OTP is: ${otp}</h2><p>Valid for 5 minutes.</p>`
+    });
+    return true;
+  } catch (err) {
+    console.error("Email Error:", err);
+    return false;
+  }
+};
+
+// --- AUTH ROUTES ---
+
+// 1. Register (Step 1: Send OTP)
+app.post('/api/auth/initiate-register', async (req, res) => {
+  try {
+    const { email, username, password } = req.body;
+    const existing = await User.findOne({ $or: [{ email }, { username }] });
+    
+    if (existing && existing.isVerified) return res.status(400).json({ error: 'User already exists' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const expires = Date.now() + 300000; // 5 mins
+
+    if (existing) {
+      existing.otp = otp;
+      existing.otpExpires = expires;
+      existing.password = hashedPassword;
+      await existing.save();
+    } else {
+      await new User({ username, email, password: hashedPassword, otp, otpExpires: expires }).save();
+    }
+
+    await sendOTP(email, otp);
+    res.json({ message: 'OTP sent' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 2. Verify OTP (Step 2)
+app.post('/api/auth/verify-register', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || user.otp !== otp || user.otpExpires < Date.now()) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+    user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+    
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, storeConfig: user.storeConfig, email: user.email, username: user.username });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 3. Login
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
     if (!user) return res.status(400).json({ error: 'User not found' });
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
+    if (!user.isVerified) return res.status(400).json({ error: 'Account not verified' });
+    
+    if (!(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: 'Invalid password' });
+
     const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '24h' });
-    res.json({ token, storeConfig: user.storeConfig });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    res.json({ token, storeConfig: user.storeConfig, email: user.email, username: user.username });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- DATA ROUTES ---
+// --- APP ROUTES ---
 
-// Store Config
 app.get('/api/store-config', authenticateToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   res.json(user.storeConfig);
@@ -64,98 +128,79 @@ app.get('/api/store-config', authenticateToken, async (req, res) => {
 
 app.put('/api/store-config', authenticateToken, async (req, res) => {
   await User.findByIdAndUpdate(req.user.userId, { storeConfig: req.body });
-  res.json({ message: 'Store settings saved' });
+  res.json({ message: 'Saved' });
 });
 
 // Products
 app.get('/api/products', authenticateToken, async (req, res) => {
-  const products = await Product.find({ userId: req.user.userId });
-  res.json(products);
+  res.json(await Product.find({ userId: req.user.userId }));
 });
 
-// NEW: Smart Add Product (Increments stock if exists)
+// SMART ADD PRODUCT (Merges Stock)
 app.post('/api/products', authenticateToken, async (req, res) => {
   try {
-    const { barcode, qty, ...otherData } = req.body;
-    
-    // Check if product exists for this user
+    const { barcode, qty, expiryDate, ...data } = req.body;
     let product = await Product.findOne({ barcode, userId: req.user.userId });
 
+    // Handle Empty Date String -> Null
+    const validExpiry = expiryDate ? new Date(expiryDate) : null;
+
     if (product) {
-      // Update existing product: Add to stock, update details
       product.qty += parseInt(qty) || 0;
-      product.name = otherData.name;
-      product.category = otherData.category;
-      product.purchasePrice = otherData.purchasePrice;
-      product.sellingPrice = otherData.sellingPrice;
-      product.minStock = otherData.minStock;
+      // Update other fields
+      Object.assign(product, data);
+      if (validExpiry) product.expiryDate = validExpiry;
       await product.save();
       res.json(product);
     } else {
-      // Create new product
       const newProduct = new Product({ 
         barcode, 
         qty: parseInt(qty) || 0, 
         userId: req.user.userId, 
-        ...otherData 
+        expiryDate: validExpiry,
+        ...data 
       });
       await newProduct.save();
       res.json(newProduct);
     }
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.delete('/api/products/:id', authenticateToken, async (req, res) => {
-  try {
-    await Product.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
-    res.json({ message: 'Product deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  await Product.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
+  res.json({ message: 'Deleted' });
 });
 
-// Bills (With Auto-Increment & Profit Tracking)
+// Bills
 app.get('/api/bills', authenticateToken, async (req, res) => {
-  const bills = await Bill.find({ userId: req.user.userId }).sort({ billNumber: -1 });
-  res.json(bills);
+  res.json(await Bill.find({ userId: req.user.userId }).sort({ billNumber: -1 }));
 });
 
 app.post('/api/bills', authenticateToken, async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const lastBill = await Bill.findOne({ userId: req.user.userId }).sort({ billNumber: -1 }).session(session);
-    const nextBillNum = (lastBill && lastBill.billNumber) ? lastBill.billNumber + 1 : 1;
+    const last = await Bill.findOne({ userId: req.user.userId }).sort({ billNumber: -1 }).session(session);
+    const nextNum = (last?.billNumber || 0) + 1;
 
-    const enrichedItems = [];
-    for (const item of req.body.items) {
-      const product = await Product.findOne({ barcode: item.productId, userId: req.user.userId }).session(session);
-      if (!product) throw new Error(`Product ${item.name} not found`);
-      
-      await Product.findOneAndUpdate(
-        { _id: product._id },
-        { $inc: { qty: -item.qty } },
-        { session }
-      );
-
-      enrichedItems.push({
-        ...item,
-        purchasePrice: product.purchasePrice // Capture cost for profit report
-      });
+    const items = [];
+    for (const i of req.body.items) {
+      const p = await Product.findOne({ barcode: i.productId, userId: req.user.userId }).session(session);
+      if (p) {
+        await Product.findByIdAndUpdate(p._id, { $inc: { qty: -i.qty } }, { session });
+        items.push({ ...i, purchasePrice: p.purchasePrice });
+      } else {
+        items.push({ ...i, purchasePrice: 0 }); // Fallback if deleted
+      }
     }
 
-    const newBill = new Bill({
-      ...req.body,
-      userId: req.user.userId,
-      billNumber: nextBillNum,
-      items: enrichedItems
-    });
-    
-    await newBill.save({ session });
+    const bill = new Bill({ ...req.body, userId: req.user.userId, billNumber: nextNum, items });
+    await bill.save({ session });
     await session.commitTransaction();
-    res.json(newBill);
+    res.json(bill);
   } catch (err) {
     await session.abortTransaction();
     res.status(500).json({ error: err.message });
@@ -164,25 +209,13 @@ app.post('/api/bills', authenticateToken, async (req, res) => {
   }
 });
 
-// DANGER ZONE: Clear Data Route
+// Clear Data
 app.delete('/api/sales-data', authenticateToken, async (req, res) => {
-  try {
-    const { password } = req.body;
-    const user = await User.findById(req.user.userId);
-    
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(403).json({ error: 'Incorrect password' });
-
-    await Bill.deleteMany({ userId: req.user.userId });
-    res.json({ message: 'All sales data cleared' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const user = await User.findById(req.user.userId);
+  if (!(await bcrypt.compare(req.body.password, user.password))) return res.status(403).json({ error: 'Wrong password' });
+  await Bill.deleteMany({ userId: req.user.userId });
+  res.json({ message: 'Cleared' });
 });
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected'))
-  .catch(err => console.log(err));
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+mongoose.connect(process.env.MONGO_URI).then(()=>console.log("MongoDB Connected")).catch(e=>console.log(e));
+app.listen(process.env.PORT || 5000, () => console.log("Server Started"));

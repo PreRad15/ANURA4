@@ -3,7 +3,10 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  // Store settings are now saved in the Database per user
+  email: { type: String, required: true, unique: true },
+  otp: String,
+  otpExpires: Date,
+  isVerified: { type: Boolean, default: false },
   storeConfig: {
     storeName: { type: String, default: 'My Store' },
     phone: String,
