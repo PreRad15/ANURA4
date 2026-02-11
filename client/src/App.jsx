@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   LayoutDashboard, Store, ShoppingCart, Package, Info, 
@@ -8,8 +8,8 @@ import {
 
 // --- CONFIGURATION ---
 // Using Render backend. Uncomment import.meta... for Vercel production if needed.
-//const API_URL = 'https://anura-sms.onrender.com/api';
- const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = 'https://anura-sms.onrender.com/api';
+// const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // --- TRANSLATIONS ---
 const t = {
@@ -227,7 +227,8 @@ const Billing = ({ products, refresh, storeData, setPrintData, setPrintMode, tok
                    <div className="flex justify-between text-sm text-white/80"><span>Subtotal</span><span>₹{cart.reduce((a,i)=>a+i.sellingPrice*i.qty,0).toFixed(2)}</span></div>
                    <div className="flex justify-between text-sm text-white/80"><span>Tax ({storeData.taxRate}%)</span><span>₹{((cart.reduce((a,i)=>a+i.sellingPrice*i.qty,0) * (parseFloat(storeData.taxRate)||0))/100).toFixed(2)}</span></div>
                    <div className="flex justify-between items-center text-sm text-white/80"><span>Discount (₹)</span><input type="number" className="w-20 p-1 bg-transparent border-b border-white/30 text-right text-white outline-none" value={disc} onChange={e => setDisc(e.target.value)} /></div> 
-                   <div className="pt-3 border-t border-white/20 flex justify-between items-end"><span className="font-bold">Total</span><span className="text-3xl font-bold text-[#e0b0ff]">₹{(cart.reduce((a,c)=>a+c.sellingPrice*c.qty,0) * (1+(parseFloat(storeData.taxRate)||0)/100) - discount).toFixed(2)}</span></div> 
+                   {/* FIXED: Replaced 'discount' with 'disc' in total calculation */}
+                   <div className="pt-3 border-t border-white/20 flex justify-between items-end"><span className="font-bold">Total</span><span className="text-3xl font-bold text-[#e0b0ff]">₹{(cart.reduce((a,c)=>a+c.sellingPrice*c.qty,0) * (1+(parseFloat(storeData.taxRate)||0)/100) - disc).toFixed(2)}</span></div> 
               </div>
               
               <div className="mb-6 grid grid-cols-2 gap-3">
