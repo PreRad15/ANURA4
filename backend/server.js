@@ -11,7 +11,18 @@ const Product = require('./models/Product');
 const Bill = require('./models/Bill');
 
 const app = express();
-app.use(cors());
+
+// --- CORS CONFIGURATION (THE FIX) ---
+// This explicitly allows your local computer AND your Vercel website
+app.use(cors({
+  origin: [
+    "http://localhost:5173",       // Local Development
+    "https://anura-4.vercel.app",  // Production Frontend
+    "https://anura-sms.vercel.app" // Alternate Production domain
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
 const JWT_SECRET = 'anura_super_secret_key_2026';
@@ -29,7 +40,6 @@ const authenticateToken = (req, res, next) => {
 };
 
 // --- EMAIL SETUP ---
-// Using Gmail SMTP from your .env file
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -41,7 +51,7 @@ const transporter = nodemailer.createTransport({
 const sendOTP = async (email, otp) => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     console.log(`[DEV MODE] OTP for ${email}: ${otp}`);
-    return true; // Fake success if no email credentials
+    return true; 
   }
   
   try {
@@ -142,12 +152,10 @@ app.post('/api/products', authenticateToken, async (req, res) => {
     const { barcode, qty, expiryDate, ...data } = req.body;
     let product = await Product.findOne({ barcode, userId: req.user.userId });
 
-    // Handle Empty Date String -> Null
     const validExpiry = expiryDate ? new Date(expiryDate) : null;
 
     if (product) {
       product.qty += parseInt(qty) || 0;
-      // Update other fields
       Object.assign(product, data);
       if (validExpiry) product.expiryDate = validExpiry;
       await product.save();
@@ -164,7 +172,6 @@ app.post('/api/products', authenticateToken, async (req, res) => {
       res.json(newProduct);
     }
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -193,7 +200,7 @@ app.post('/api/bills', authenticateToken, async (req, res) => {
         await Product.findByIdAndUpdate(p._id, { $inc: { qty: -i.qty } }, { session });
         items.push({ ...i, purchasePrice: p.purchasePrice });
       } else {
-        items.push({ ...i, purchasePrice: 0 }); // Fallback if deleted
+        items.push({ ...i, purchasePrice: 0 });
       }
     }
 
@@ -218,4 +225,5 @@ app.delete('/api/sales-data', authenticateToken, async (req, res) => {
 });
 
 mongoose.connect(process.env.MONGO_URI).then(()=>console.log("MongoDB Connected")).catch(e=>console.log(e));
-app.listen(process.env.PORT || 5000, () => console.log("Server Started"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
