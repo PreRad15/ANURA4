@@ -8,8 +8,8 @@ import {
 
 // --- CONFIGURATION ---
 // Using Render backend. Uncomment import.meta... for Vercel production if needed.
-// const API_URL = 'https://anura-sms.onrender.com/api';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+//const API_URL = 'https://anura-sms.onrender.com/api';
+ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // --- TRANSLATIONS ---
 const t = {
@@ -226,9 +226,8 @@ const Billing = ({ products, refresh, storeData, setPrintData, setPrintMode, tok
               <div className="space-y-3 mb-6 bg-black/20 p-4 rounded-xl">
                    <div className="flex justify-between text-sm text-white/80"><span>Subtotal</span><span>₹{cart.reduce((a,i)=>a+i.sellingPrice*i.qty,0).toFixed(2)}</span></div>
                    <div className="flex justify-between text-sm text-white/80"><span>Tax ({storeData.taxRate}%)</span><span>₹{((cart.reduce((a,i)=>a+i.sellingPrice*i.qty,0) * (parseFloat(storeData.taxRate)||0))/100).toFixed(2)}</span></div>
-                   {/* FIXED VARIABLE NAME HERE: discount -> disc */}
                    <div className="flex justify-between items-center text-sm text-white/80"><span>Discount (₹)</span><input type="number" className="w-20 p-1 bg-transparent border-b border-white/30 text-right text-white outline-none" value={disc} onChange={e => setDisc(e.target.value)} /></div> 
-                   <div className="pt-3 border-t border-white/20 flex justify-between items-end"><span className="font-bold">Total</span><span className="text-3xl font-bold text-[#e0b0ff]">₹{(cart.reduce((a,c)=>a+c.sellingPrice*c.qty,0) * (1+(parseFloat(storeData.taxRate)||0)/100) - disc).toFixed(2)}</span></div> 
+                   <div className="pt-3 border-t border-white/20 flex justify-between items-end"><span className="font-bold">Total</span><span className="text-3xl font-bold text-[#e0b0ff]">₹{(cart.reduce((a,c)=>a+c.sellingPrice*c.qty,0) * (1+(parseFloat(storeData.taxRate)||0)/100) - discount).toFixed(2)}</span></div> 
               </div>
               
               <div className="mb-6 grid grid-cols-2 gap-3">
@@ -379,10 +378,10 @@ const AboutPage = () => (
       </div>
       <div>
           <h1 className="text-6xl font-bold text-[#4a1d56] tracking-tight mb-2 dark:text-white">ANURA SMS</h1>
-          <p className="text-xl text-gray-500 font-medium">Enterprise Edition v2.4.2</p>
+          <p className="text-xl text-gray-500 font-medium">Enterprise Edition v2.6</p>
       </div>
       <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-[#e8daef] max-w-lg w-full transform hover:scale-105 transition-all">
-          <p className="font-bold text-gray-800 dark:text-white text-lg">Developed by Aaryasinghsingh Thakur.</p>
+          <p className="font-bold text-gray-800 dark:text-white text-lg">Developed by Premshankarsingh Thakur & Co.</p>
           <p className="text-sm text-gray-500 mt-2">© 2026 All Rights Reserved.</p>
           <div className="flex justify-center gap-4 mt-6">
               <Globe size={20} className="text-[#8e44ad]"/>
@@ -497,9 +496,36 @@ export default function App() {
   const [printData, setPrintData] = useState(null);
   const [printMode, setPrintMode] = useState('');
   
-  // Clock
+  // Clock & Location State
   const [time, setTime] = useState(new Date());
+  const [location, setLocation] = useState('Locating...');
+
+  // Update time every second
   useEffect(() => { const i = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(i); }, []);
+
+  // Fetch Location on Load
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await response.json();
+          const city = data.address.city || data.address.town || data.address.village || data.address.hamlet || "Unknown";
+          const country = data.address.country || "";
+          setLocation(`${city}, ${country}`);
+        } catch (error) {
+          console.error("Error fetching location:", error);
+          setLocation("Location Unavailable");
+        }
+      }, (error) => {
+        console.error("Geolocation error:", error);
+        setLocation("Location Denied");
+      });
+    } else {
+      setLocation("GPS Not Supported");
+    }
+  }, []);
 
   // Fetch Data
   const refresh = async () => {
@@ -549,7 +575,7 @@ export default function App() {
                 <div className="flex items-center gap-6">
                     <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 hover:bg-gray-100 rounded-full dark:hover:bg-gray-700">{theme === 'dark' ? <Sun className="text-yellow-400"/> : <Moon className="text-[#4a1d56]"/>}</button>
                     <div className="flex items-center gap-2 text-sm font-bold text-[#4a1d56] bg-purple-50 px-4 py-2 rounded-full border border-purple-100 dark:bg-gray-700 dark:text-purple-300 dark:border-gray-600">
-                        <MapPin size={16}/> Akola, India
+                        <MapPin size={16}/> {location}
                     </div>
                 </div>
             </header>
