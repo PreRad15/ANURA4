@@ -12,13 +12,12 @@ const Bill = require('./models/Bill');
 
 const app = express();
 
-// --- CORS CONFIGURATION (THE FIX) ---
-// This explicitly allows your local computer AND your Vercel website
+// --- CORS CONFIGURATION ---
 app.use(cors({
   origin: [
-    "http://localhost:5173",       // Local Development
-    "https://anura-4.vercel.app",  // Production Frontend
-    "https://anura-sms.vercel.app" // Alternate Production domain
+    "http://localhost:5173",       
+    "https://anura-4.vercel.app",  
+    "https://anura-sms.vercel.app" 
   ],
   credentials: true
 }));
@@ -39,16 +38,19 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- EMAIL SETUP ---
+// --- EMAIL SETUP (FIXED) ---
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  }
+  },
+  // FORCE IPv4: This fixes the ENETUNREACH error
+  family: 4 
 });
 
 const sendOTP = async (email, otp) => {
+  // If no env variables, log to console (Dev mode)
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     console.log(`[DEV MODE] OTP for ${email}: ${otp}`);
     return true; 
@@ -59,8 +61,16 @@ const sendOTP = async (email, otp) => {
       from: `"Anura SMS" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'ANURA Verification Code',
-      html: `<h2>Your OTP is: ${otp}</h2><p>Valid for 5 minutes.</p>`
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; text-align: center; border: 1px solid #ddd; border-radius: 10px;">
+          <h2 style="color: #4a1d56;">Welcome to ANURA</h2>
+          <p>Your verification code is:</p>
+          <h1 style="color: #2e0f3e; letter-spacing: 5px;">${otp}</h1>
+          <p>This code expires in 5 minutes.</p>
+        </div>
+      `
     });
+    console.log(`[SUCCESS] Email sent to ${email}`);
     return true;
   } catch (err) {
     console.error("Email Error:", err);
@@ -76,6 +86,7 @@ app.post('/api/auth/initiate-register', async (req, res) => {
     const { email, username, password } = req.body;
     const existing = await User.findOne({ $or: [{ email }, { username }] });
     
+    // If user is already verified, stop them
     if (existing && existing.isVerified) return res.status(400).json({ error: 'User already exists' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -83,17 +94,26 @@ app.post('/api/auth/initiate-register', async (req, res) => {
     const expires = Date.now() + 300000; // 5 mins
 
     if (existing) {
+      // Retry registration
       existing.otp = otp;
       existing.otpExpires = expires;
       existing.password = hashedPassword;
       await existing.save();
     } else {
+      // New user
       await new User({ username, email, password: hashedPassword, otp, otpExpires: expires }).save();
     }
 
-    await sendOTP(email, otp);
+    const emailSent = await sendOTP(email, otp);
+    if (!emailSent) {
+      return res.status(500).json({ error: 'Failed to send email. Check server logs.' });
+    }
+
     res.json({ message: 'OTP sent' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error(err);
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 // 2. Verify OTP (Step 2)
@@ -141,17 +161,14 @@ app.put('/api/store-config', authenticateToken, async (req, res) => {
   res.json({ message: 'Saved' });
 });
 
-// Products
 app.get('/api/products', authenticateToken, async (req, res) => {
   res.json(await Product.find({ userId: req.user.userId }));
 });
 
-// SMART ADD PRODUCT (Merges Stock)
 app.post('/api/products', authenticateToken, async (req, res) => {
   try {
     const { barcode, qty, expiryDate, ...data } = req.body;
     let product = await Product.findOne({ barcode, userId: req.user.userId });
-
     const validExpiry = expiryDate ? new Date(expiryDate) : null;
 
     if (product) {
@@ -181,7 +198,6 @@ app.delete('/api/products/:id', authenticateToken, async (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
-// Bills
 app.get('/api/bills', authenticateToken, async (req, res) => {
   res.json(await Bill.find({ userId: req.user.userId }).sort({ billNumber: -1 }));
 });
@@ -216,7 +232,6 @@ app.post('/api/bills', authenticateToken, async (req, res) => {
   }
 });
 
-// Clear Data
 app.delete('/api/sales-data', authenticateToken, async (req, res) => {
   const user = await User.findById(req.user.userId);
   if (!(await bcrypt.compare(req.body.password, user.password))) return res.status(403).json({ error: 'Wrong password' });
