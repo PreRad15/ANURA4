@@ -38,19 +38,21 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- EMAIL SETUP (FIXED) ---
+// --- EMAIL SETUP (MANUAL SMTP FIX) ---
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com', // Explicit host
+  port: 465,              // Secure port
+  secure: true,           // Use SSL
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
-  // FORCE IPv4: This fixes the ENETUNREACH error
+  // FORCE IPv4: Strictly disable IPv6 lookup
   family: 4 
 });
 
 const sendOTP = async (email, otp) => {
-  // If no env variables, log to console (Dev mode)
+  // If credentials missing, log only (Dev mode)
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     console.log(`[DEV MODE] OTP for ${email}: ${otp}`);
     return true; 
@@ -94,13 +96,11 @@ app.post('/api/auth/initiate-register', async (req, res) => {
     const expires = Date.now() + 300000; // 5 mins
 
     if (existing) {
-      // Retry registration
       existing.otp = otp;
       existing.otpExpires = expires;
       existing.password = hashedPassword;
       await existing.save();
     } else {
-      // New user
       await new User({ username, email, password: hashedPassword, otp, otpExpires: expires }).save();
     }
 
