@@ -38,45 +38,33 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- EMAIL SETUP (MANUAL SMTP FIX) ---
+// --- EMAIL SETUP ---
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com', // Explicit host
-  port: 465,              // Secure port
-  secure: true,           // Use SSL
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
-  // FORCE IPv4: Strictly disable IPv6 lookup
   family: 4 
 });
 
 const sendOTP = async (email, otp) => {
-  // If credentials missing, log only (Dev mode)
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log(`[DEV MODE] OTP for ${email}: ${otp}`);
-    return true; 
+    return { success: false }; 
   }
-  
   try {
     await transporter.sendMail({
       from: `"Anura SMS" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'ANURA Verification Code',
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; text-align: center; border: 1px solid #ddd; border-radius: 10px;">
-          <h2 style="color: #4a1d56;">Welcome to ANURA</h2>
-          <p>Your verification code is:</p>
-          <h1 style="color: #2e0f3e; letter-spacing: 5px;">${otp}</h1>
-          <p>This code expires in 5 minutes.</p>
-        </div>
-      `
+      html: `<h2>Your OTP is: ${otp}</h2><p>This code expires in 5 minutes.</p>`
     });
-    console.log(`[SUCCESS] Email sent to ${email}`);
-    return true;
+    return { success: true };
   } catch (err) {
-    console.error("Email Error:", err);
-    return false;
+    console.error("Render blocked the email SMTP port:", err.message);
+    return { success: false };
   }
 };
 
@@ -88,8 +76,9 @@ app.post('/api/auth/initiate-register', async (req, res) => {
     const { email, username, password } = req.body;
     const existing = await User.findOne({ $or: [{ email }, { username }] });
     
-    // If user is already verified, stop them
-    if (existing && existing.isVerified) return res.status(400).json({ error: 'User already exists' });
+    if (existing && existing.isVerified) {
+        return res.status(400).json({ error: 'Username or Email is already registered!' });
+    }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -104,14 +93,15 @@ app.post('/api/auth/initiate-register', async (req, res) => {
       await new User({ username, email, password: hashedPassword, otp, otpExpires: expires }).save();
     }
 
-    const emailSent = await sendOTP(email, otp);
-    if (!emailSent) {
-      return res.status(500).json({ error: 'Failed to send email. Check server logs.' });
+    const emailResult = await sendOTP(email, otp);
+    
+    // SMART FALLBACK: If Render blocks the email, send the OTP back to the frontend for demo purposes
+    if (!emailResult.success) {
+      return res.json({ message: 'OTP Fallback', demoOTP: otp, isDemo: true });
     }
 
-    res.json({ message: 'OTP sent' });
+    res.json({ message: 'OTP sent', isDemo: false });
   } catch (err) { 
-    console.error(err);
     res.status(500).json({ error: err.message }); 
   }
 });
@@ -140,7 +130,7 @@ app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
     if (!user) return res.status(400).json({ error: 'User not found' });
-    if (!user.isVerified) return res.status(400).json({ error: 'Account not verified' });
+    if (!user.isVerified) return res.status(400).json({ error: 'Account not verified. Please register again.' });
     
     if (!(await bcrypt.compare(password, user.password))) return res.status(400).json({ error: 'Invalid password' });
 

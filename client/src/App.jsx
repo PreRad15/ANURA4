@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { 
   LayoutDashboard, Store, ShoppingCart, Package, Info, 
@@ -10,6 +10,7 @@ import {
 // Using Render backend. Uncomment import.meta... for Vercel production if needed.
 const API_URL = 'https://anura-sms.onrender.com/api';
 // const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 
 // --- TRANSLATIONS ---
 const t = {
@@ -61,10 +62,19 @@ const AuthScreen = ({ setToken, setUserData }) => {
         setToken(res.data.token);
         setUserData({ email: res.data.email, username: res.data.username });
       } else {
-        await axios.post(`${API_URL}/auth/initiate-register`, form);
+        const res = await axios.post(`${API_URL}/auth/initiate-register`, form);
         setStep(2);
+        
+        // SMART FALLBACK ALERT FOR PORTFOLIO
+        if (res.data.isDemo) {
+            alert(`⚠️ Render Free Tier blocked the Email.\n\nFor this portfolio demo, your OTP is: ${res.data.demoOTP}`);
+        } else {
+            alert("OTP sent to your email!");
+        }
       }
-    } catch (err) { setError(err.response?.data?.error || 'Connection Error. Is Backend Running?'); }
+    } catch (err) { 
+        setError(err.response?.data?.error || 'Connection Error. Is Backend Running?'); 
+    }
   };
 
   const verify = async (e) => {
@@ -84,7 +94,7 @@ const AuthScreen = ({ setToken, setUserData }) => {
           <h1 className="text-3xl font-bold text-purple-700">ANURA</h1>
           <p className="text-gray-500">Store Management System</p>
         </div>
-        {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{error}</div>}
+        {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm font-bold text-center border border-red-200">{error}</div>}
         
         {step === 1 ? (
           <form onSubmit={submit} className="space-y-4">
@@ -95,18 +105,18 @@ const AuthScreen = ({ setToken, setUserData }) => {
           </form>
         ) : (
           <form onSubmit={verify} className="space-y-4">
-            <p className="text-center text-sm">OTP sent to {form.email}</p>
+            <p className="text-center text-sm">Enter the code to verify your account</p>
             <input className="w-full p-3 border rounded-xl text-center text-2xl tracking-widest outline-none focus:ring-2 focus:ring-[#8e44ad]" placeholder="000000" value={form.otp} onChange={e=>setForm({...form, otp:e.target.value})} required />
             <button className="w-full bg-green-600 text-white p-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg">{t.en.verify}</button>
           </form>
         )}
-        {step === 1 && <div className="mt-6 text-center"><button onClick={()=>setIsLogin(!isLogin)} className="text-sm text-[#8e44ad] hover:underline font-medium">{isLogin ? "New User? Register" : "Have Account? Login"}</button></div>}
+        {step === 1 && <div className="mt-6 text-center"><button type="button" onClick={()=>{setIsLogin(!isLogin); setError('');}} className="text-sm text-[#8e44ad] hover:underline font-medium">{isLogin ? "New User? Register" : "Have Account? Login"}</button></div>}
       </div>
     </div>
   );
 };
 
-// --- SUB-COMPONENTS (Moved outside App to prevent re-renders) ---
+// --- SUB-COMPONENTS ---
 
 const Sidebar = ({ sidebarOpen, activeTab, setActiveTab, lang, setLang, handleLogout }) => (
   <div className={`${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 bg-white dark:bg-gray-800 border-r flex flex-col fixed h-full z-20 print:hidden shadow-lg`}>
@@ -227,7 +237,6 @@ const Billing = ({ products, refresh, storeData, setPrintData, setPrintMode, tok
                    <div className="flex justify-between text-sm text-white/80"><span>Subtotal</span><span>₹{cart.reduce((a,i)=>a+i.sellingPrice*i.qty,0).toFixed(2)}</span></div>
                    <div className="flex justify-between text-sm text-white/80"><span>Tax ({storeData.taxRate}%)</span><span>₹{((cart.reduce((a,i)=>a+i.sellingPrice*i.qty,0) * (parseFloat(storeData.taxRate)||0))/100).toFixed(2)}</span></div>
                    <div className="flex justify-between items-center text-sm text-white/80"><span>Discount (₹)</span><input type="number" className="w-20 p-1 bg-transparent border-b border-white/30 text-right text-white outline-none" value={disc} onChange={e => setDisc(e.target.value)} /></div> 
-                   {/* FIXED: Replaced 'discount' with 'disc' in total calculation */}
                    <div className="pt-3 border-t border-white/20 flex justify-between items-end"><span className="font-bold">Total</span><span className="text-3xl font-bold text-[#e0b0ff]">₹{(cart.reduce((a,c)=>a+c.sellingPrice*c.qty,0) * (1+(parseFloat(storeData.taxRate)||0)/100) - disc).toFixed(2)}</span></div> 
               </div>
               
@@ -382,11 +391,7 @@ const AboutPage = () => (
           <p className="text-xl text-gray-500 font-medium">Enterprise Edition v2.6</p>
       </div>
       <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-[#e8daef] max-w-lg w-full transform hover:scale-105 transition-all">
-          <p className="font-bold text-gray-800 dark:text-white text-lg">Developed by Aaryasingh Thakur </p>
-          <p className="font-bold text-gray-800 dark:text-white text-lg"></p>
-          <p className="font-bold text-gray-800 dark:text-white text-lg"></p>
-          <p className="text-sm text-gray-500 mt-2">Developed For Premshankarsingh Thakur & Company</p>
-          <p className="text-sm text-gray-500 mt-2">aaryasinghttc@gmail.com  Aaryasingh Thakur  +91-9209273910.</p>
+          <p className="font-bold text-gray-800 dark:text-white text-lg">Developed by Premshankarsingh Thakur & Co.</p>
           <p className="text-sm text-gray-500 mt-2">© 2026 All Rights Reserved.</p>
           <div className="flex justify-center gap-4 mt-6">
               <Globe size={20} className="text-[#8e44ad]"/>
